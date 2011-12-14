@@ -1,0 +1,62 @@
+<?php
+/**
+ * @file
+ * Install, update and uninstall functions for the Complete Blog module.
+ */
+
+/* Installing complete_blog */
+/**
+ * Implements of hook_install().
+ */
+function complete_blog_install() {
+  $result = drupal_install_schema('complete_blog');
+
+  if ($result[0]['success'] == 1) {
+    drupal_set_message(st('Complete Blog module has installed succesfully.'));
+  }
+  else {
+    drupal_set_message(st('complete_blog module installation was unsuccesfull. The necessary database table may be created by hand.', 'error'));
+  }
+}
+
+/**
+ * Implements of hook_schema().
+ */
+function complete_blog_schema() {
+  $schema['complete_blog'] = array(
+    'description' => t('This holds the complete_blog data.'),
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+      ),
+      'description' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+      ),
+      'enabled' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('uid'),
+  );
+
+  return $schema;
+
+}
+
+/**
+ * Implements of hook_uninstall().
+ */
+function complete_blog_uninstall() {
+  drupal_uninstall_schema('complete_blog');
+}

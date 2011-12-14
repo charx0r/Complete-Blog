@@ -1,0 +1,5 @@
+name= Complete Blog
+description = Adds more utilities to Drupal core blog to make it more useful and usable.
+core = 6.x
+dependencies[] = blog
+

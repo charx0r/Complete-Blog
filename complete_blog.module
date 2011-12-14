@@ -1,0 +1,176 @@
+<?php
+/**
+ * @file
+ * Hooks for complete blog module.
+ */
+
+/**
+ * Implements of hook_help().
+ */
+function complete_blog_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#complete_blog':
+      $output = '<p>' . t('The Complete Blog module provides registration features for the core blog module.') . '</p>';
+      return $output;
+    case 'admin/modules#description':
+      return t('The Complete Blog module provides registration features for the core blog module.');
+  }
+}
+
+/**
+ * Implements of hook_perm().
+ */
+function complete_blog_perm() {
+  return array('access complete_blog', 'administer complete_blog', 'add blog info to account');
+}
+
+/**
+ * Get complete blog details for a specific user
+ */
+function complete_blog_get_blog_details($uid, $reset = FALSE) {
+  $details = new stdClass();
+  if ($entry = complete_blog_db_get_blog_details($uid, $reset)) {
+    $details->title = (!empty($entry->title)) ? $entry->title : NULL;
+    $details->description = (!empty($entry->description)) ? check_markup($entry->description, $entry->enabled) : NULL;
+    $details->enabled = (!empty($entry->enabled)) ? $entry->enabled : NULL;
+  }
+  return $details;
+}
+
+/**
+ * Get complete blog details for a specific user from the DB
+ */
+function complete_blog_db_get_blog_details($uid, $reset = FALSE) {
+  static $details;
+
+  if (!$details[$uid] || $reset) {
+    $details[$uid] = new stdClass();
+    $result = db_query('SELECT title, description, enabled FROM {complete_blog} WHERE uid = %d', $uid);
+    if ($entry = db_fetch_object($result)) {
+      $details[$uid] = $entry;
+    }
+  }
+
+  return $details[$uid];
+}
+
+/**
+ * Implements of hook_user().
+ */
+function complete_blog_user($op, &$edit, &$account, $category = NULL) {
+  switch ($op) {
+    case 'update':
+    case 'insert':
+  return complete_blog_save_complete_blog($edit, $account, $category);
+    case 'form':
+  return complete_blog_form_complete_blog($edit, $account, $category);
+    case 'delete':
+      db_query('DELETE FROM {complete_blog} WHERE uid = %d', $account->uid);
+  }
+}
+
+/**
+  * Helper function: create the form on the user settings page
+  */
+function complete_blog_form_complete_blog($edit, $account, $category) {
+  if ($category == 'account' && (user_access('add blog info to account') || user_access('administer complete_blog'))) {
+    $details = complete_blog_db_get_blog_details($account->uid);
+    $fields['complete_blog_settings'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Blog Information'),
+      '#weight' => 5,
+    );
+    $fields['complete_blog_settings']['title'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Blog Title'),
+      '#maxlength' => 128,
+      '#default_value' => $details->title,
+      '#description' => t('Your blog title will display on your blog and blog posts.'),
+    );
+    $fields['complete_blog_settings']['description'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Blog Description'),
+      '#default_value' => $details->description,
+      '#description' => t('Your blog description will display on your blog and blog posts.'),
+    );
+//    $fields['advanced_blog_settings']['desc_format'] = filter_form($details->format);
+    return $fields;
+  }
+}
+
+/**
+  * Helper function: insert / update complete_blog data into the database
+  */
+function complete_blog_save_complete_blog(&$edit, &$account, $category) {
+  if ($category == 'account') {
+    $uid = $account->uid;
+
+    $entry = array();
+    $entry['uid'] = $uid;
+    $entry['title'] = $edit['title'];
+    $entry['description'] = $edit['description'];
+    $entry['enabled'] = '1';
+
+    $existing = db_result(db_query("SELECT uid FROM {complete_blog} WHERE uid = %d", $uid));
+    if ($existing) {
+      drupal_write_record('complete_blog', $entry, 'uid');
+    }
+    else {
+      drupal_write_record('complete_blog', $entry);
+    }
+  }
+}
+
+/**
+ * Implements of hook_token_values().
+ */
+function complete_blog_token_values($type, $object = NULL, $options = array()) {
+  // @TODO: add -raw variants of tokens, by calling complete_blog_db_get_blog_details() directly
+  if ($type == 'node' || $type == 'blog') {
+    $details = complete_blog_get_blog_details($object->uid, TRUE);
+    if ($details->title) {
+      $tokens['blog-title'] = check_plain($details->title);
+    }
+    else {
+      $tokens['blog-title'] = $object->name;
+    }
+  }
+
+  if ($type == 'user') {
+    $details = complete_blog_get_blog_details($object->uid, TRUE);
+    if ($details->title) {
+      $tokens['user-blog-title'] = check_plain($details->title);
+    }
+    else {
+      $tokens['user-blog-title'] = $object->name;
+    }
+  }
+  return $tokens;
+}
+
+/**
+ * Implements of hook_token_list().
+ */
+function complete_blog_token_list($type = 'all') {
+  if ($type == 'user' || $type == 'all') {
+    $tokens['user']['user-blog-title'] = t('Blog Title from complete_blog module, or username if no blog title is provided.');
+  }
+  if ($type == 'node' || $type == 'all') {
+    $tokens['node']['blog-title'] = t('Blog Title from complete_blog module, or username if no blog title is provided.');
+  }
+  return $tokens;
+}
+
+/**
+ * Implements of hook_form_alter().
+ */
+function complete_blog_form_alter(&$form, $form_state, $form_id) {
+  global $user;
+  $uid = $user->uid;
+  if ($form_id == 'blog_node_form') {
+    $details = complete_blog_get_blog_details($uid, TRUE);
+    if ($details->enabled == 0) {
+  drupal_goto('user/' . $uid . '/edit');
+  }
+  }
+}
